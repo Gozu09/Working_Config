@@ -1,0 +1,75 @@
+#!/bin/bash
+
+BASEROLE="${HOME}/.config/manage_ansible_role.d/base-role"
+
+if [ ! -d "${BASEROLE}" ]; then
+  echo "Could not find BASE ROLE directory";
+  exit 13
+fi
+
+create_local_role(){
+  local r=$1
+  if [ -d "${PWD}/${r}" ]; then
+    echo "${r} already exists. Please do something different"
+    exit 14
+  fi
+
+  echo "Role ${r} will be created here : ${PWD}"
+  cp -av ${BASEROLE} ./${r}
+  sed -i -e "s/ROLENAME/${r}/" ./${r}/*/*.yml
+
+  if [ -n "${ROLEDESC}" ]; then
+    sed -i -e "s/DESC/${ROLEDESC}/" ./${r}/defaults/main.yml
+  fi
+
+  echo "Create main task file : ./${r}/tasks/${r}.yml"
+  touch ./${r}/tasks/${r}.yml
+  tree ./${r}
+
+  echo
+  echo "You just have to use this file as a base main role task"
+  echo "Edit it as you wish : ./${r}/tasks/${r}.yml"
+  echo
+
+}
+
+usage(){
+  cat <<EOF
+
+ `basename $0` -c "<role>" -d "<role desc>"
+
+    -c <role>		create local role base on the template [${BASEROLE}]
+    -d			role description
+
+EOF
+}
+
+check_arg(){
+  local a=$1
+  if [ -z "${a}" ]; then
+    usage
+    exit 5
+  fi
+}
+
+# ---------------------------------------------------
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 1
+fi
+
+while getopts ":c:d:h" opts; do
+  case $opts in
+    c) create=1 ; ROLENAME=${OPTARG} ; check_arg ${ROLENAME} ;;
+    d) ROLEDESC=${OPTARG};;
+    h) usage ; exit 2 ;;
+  esac
+done
+shift $((OPTIND-1))
+
+
+if [ -n "${create}" ]; then
+  create_local_role ${ROLENAME}
+fi
+
+exit 0
