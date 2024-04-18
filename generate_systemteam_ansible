@@ -1,0 +1,61 @@
+#!/bin/bash
+
+UPSTREAM_VERSION="6.7.0-1"
+IMAGE_NAME="service-systemteam-docker.artifactory.si.francetelecom.fr/systemteam_ansible"
+IMAGE_VERSION="${1:-${UPSTREAM_VERSION}}"
+LOCAL_IMAGE_NAME="my_systemteam_ansible"
+
+TMPDIR=$( mktemp -d ./tmp.XXXX )
+
+
+if [[ -n "${CLEANALL}" ]]; then
+  printf ">>> %s\n" "Cleaning all old docker images"
+  docker rmi $( docker images ${LOCAL_IMAGE_NAME} -q )
+fi
+
+printf ">>> %s\n" "Create temporary Directory : ${TMPDIR}"
+printf ">>> %s\n" "Create temporary Dockerfile"
+
+cd "${TMPDIR}"
+cat > Dockerfile <<EOF
+FROM ${IMAGE_NAME}:${IMAGE_VERSION}
+
+EOF
+
+cat >> Dockerfile <<"EOF"
+# Override user name at build. If build-arg is not passed, will create user named `default_user`
+ARG DOCKER_USER=default_user
+ARG DOCKER_UID=1000
+ARG DOCKER_GID=1000
+
+# Create a group and user
+RUN groupadd -g ${DOCKER_GID} systemteam && useradd -m -u ${DOCKER_UID} -g ${DOCKER_GID} -s "/bin/bash" $DOCKER_USER
+
+# Tell docker that all future commands should run as this user
+USER ${DOCKER_USER}
+EOF
+
+
+# debug
+if [[ -n "${DEBUG}" ]]; then
+  echo " ----- DEBUG ----- "
+  cat Dockerfile
+  echo " ----- DEBUG ----- "
+fi
+
+# build
+printf ">>> %s\n" "Build local Image : ${LOCAL_IMAGE_NAME}"
+docker build --quiet \
+	--build-arg DOCKER_USER=$( whoami ) \
+	--build-arg DOCKER_UID=$( id -u ${USER} ) \
+	--build-arg DOCKER_GID=$( id -g ${USER} ) \
+	-t ${LOCAL_IMAGE_NAME}:${IMAGE_VERSION} .
+
+
+rm Dockerfile
+cd .. &>/dev/null
+rmdir "${TMPDIR}"
+
+printf ">>> %s\n" "Your custom image for SystemTeam Ansible is generated and available as ${LOCAL_IMAGE_NAME}:${IMAGE_VERSION}"
+
+exit 0
